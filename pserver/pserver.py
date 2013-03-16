@@ -18,6 +18,8 @@ class HelloHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("Hello, world")
 
+#GET /q?q=a:b
+
 class ProxyHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def get(self):
@@ -54,6 +56,10 @@ class ProxyHandler(tornado.web.RequestHandler):
             client.write(b'HTTP/1.0 200 Connection established\r\n\r\n')
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+
+        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        client.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
         upstream = tornado.iostream.IOStream(s)
         upstream.connect((host, int(port)), start_tunnel)
 
