@@ -16,11 +16,21 @@ sys.path.append(os.path.join(PWD, './lib/'))
 so = PWD + '/libprun/libprun.so'
 
 '''
-USAGE: 
-
+this is for a normal http CONNECT proxy
 '''
 def main():
     os.putenv('PRUN_PROXY', '127.0.0.1:8888')
+    os.putenv('PRUN_PROXY_PREFIX', 'CONNECT ')
+    os.putenv('LD_PRELOAD', so)
+    os.execvp(sys.argv[1], sys.argv[1:]) 
+    print PWD
+
+'''
+this is for a private proxy
+'''
+def main():
+    os.putenv('PRUN_PROXY', '127.0.0.1:8888')
+    os.putenv('PRUN_PROXY_PREFIX', 'GET /q?q=')
     os.putenv('LD_PRELOAD', so)
     os.execvp(sys.argv[1], sys.argv[1:]) 
     print PWD

@@ -22,7 +22,7 @@ class ProxyHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def get(self):
         q = self.request.arguments['q'][0]
-        print 'prxy: ', q
+        print 'proxy: ', q
 
         host, port = q.split(':')
         #host, port = self.request.uri.split(':')
@@ -87,6 +87,6 @@ application = tornado.web.Application([
 ])
 
 if __name__ == "__main__":
-    application.listen(8889)
+    application.listen(8888)
     tornado.ioloop.IOLoop.instance().start()
 
