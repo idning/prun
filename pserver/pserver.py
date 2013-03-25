@@ -9,6 +9,8 @@
 import os
 import sys
 import socket
+import re
+import time
 
 import tornado.ioloop
 import tornado.web
@@ -63,6 +65,23 @@ class ProxyHandler(tornado.web.RequestHandler):
         upstream = tornado.iostream.IOStream(s)
         upstream.connect((host, int(port)), start_tunnel)
 
+# for pelican
+def get_pelican_time(path):
+    if os.path.isdir(path):
+        return sys.maxint
+    data = file(path).read()
+    m = re.search('\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', data, re.DOTALL)
+    if m:
+        t = m.group(0)
+        return time.mktime(time.strptime(t, '%Y-%m-%d %X'))
+    return 0
+
+def get_mtime(path):
+    return os.path.getmtime(path)
+
+def sort_fun(path):
+    return 0
+
 class MyStaticFileHandler(tornado.web.StaticFileHandler):
     def initialize(self, path):
         tornado.web.StaticFileHandler.initialize(self, path)
@@ -75,24 +94,39 @@ class MyStaticFileHandler(tornado.web.StaticFileHandler):
         print 'path :', path
         print 'read file :', abspath
         
+        self.write('dir list for %s' % path)
+        self.write('<hr>')
+
         if not os.path.isdir(abspath): 
             return tornado.web.StaticFileHandler.get(self, path)
 
-        for filename in os.listdir(abspath):
+        lst = os.listdir(abspath)
+        lst = sorted(lst, reverse=True, key=lambda s: sort_fun(os.path.join(abspath, s)))
+        for filename in lst:
             p = os.path.join(abspath, filename)
             if os.path.isdir(p):
-                html = '<a href="%s/">%s/</a></br>\n' % (filename, filename)
+                html = '<li><a href="%s/">%s/</a></br>\n' % (filename, filename)
             else:
-                html = '<a href="%s">%s</a></br>\n' % (filename, filename)
+                html = '<li><a href="%s">%s</a></br>\n' % (filename, filename)
             self.write(html)
         
-application = tornado.web.Application([
-    (r"/hello", HelloHandler),
-    (r"/q", ProxyHandler),
-    (r"/(.*)", MyStaticFileHandler, {'path': os.path.join(PWD, '../')} ),
-])
-
 if __name__ == "__main__":
-    application.listen(8888)
+
+    import argparse
+    parser = argparse.ArgumentParser(prog='PROG')
+    parser.add_argument('-p', '--port', type=int, default='8888')
+    parser.add_argument('-r', '--root', default=os.path.join(PWD, '../'))
+    parser.add_argument('-t', '--timefun', default='get_mtime')
+    ARGS = parser.parse_args()
+
+    global sort_fun
+    sort_fun = eval(ARGS.timefun)
+
+    application = tornado.web.Application([
+        (r"/hello", HelloHandler),
+        (r"/q", ProxyHandler),
+        (r"/(.*)", MyStaticFileHandler, {'path': ARGS.root} ),
+    ])
+    application.listen(ARGS.port)
     tornado.ioloop.IOLoop.instance().start()
 
