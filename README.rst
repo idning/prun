@@ -1,22 +1,33 @@
 
-this is a private proxy 
+this is a private proxy
 
-we use a modified http CONNECT proxy. change it to a GET method. 
+we use a modified http CONNECT proxy. change it to a GET method.
 
-server
-======
+pserver
+=======
 
-tornado: https://github.com/facebook/tornado.git
+based on tornado: https://github.com/facebook/tornado.git
 
-client
-======
+client(prun)
+============
 
-we use 
+we use
 
     os.putenv('LD_PRELOAD', so)
 
 to inject a so, hook the connect method of client application, so we can use:
 
     ./prun.py curl 'www.sina.com'
+
+proxy
+=====
+
+a pure python proxy, no auth supported.
+
+
+more python proxy:
+==================
+
+http://proxies.xhaus.com/python/
 
 
