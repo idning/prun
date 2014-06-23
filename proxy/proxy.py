@@ -42,7 +42,8 @@ class ProxyHandler(tornado.web.RequestHandler):
 
     @tornado.web.asynchronous
     def get(self):
-        print 'get', self.request
+        if not self.handle_auth():
+            return
 
         def handle_response(response):
             if response.error and not isinstance(response.error,
@@ -80,15 +81,35 @@ class ProxyHandler(tornado.web.RequestHandler):
     def post(self):
         return self.get()
 
+    def handle_auth(self):
+        host, port = self.request.uri.split(':')
+        client = self.request.connection.stream
+
+        print self.request
+
+        if 'Proxy-Authorization' in self.request.headers:
+            auth = self.request.headers['Proxy-Authorization']
+            import base64
+            user_passwd = base64.b64decode(auth.split()[1])
+            print auth, user_passwd
+            user, passwd = user_passwd.split(':', 1)
+
+            if user == 'ning' and passwd == 'passwd':
+                return True
+
+        client.write('HTTP/1.0 407 Proxy Authentication Required\r\n')
+        client.write('proxy-Authenticate: Basic\r\n')
+        client.write('\r\n')
+
+        return False
+
     @tornado.web.asynchronous
     def connect(self):
         host, port = self.request.uri.split(':')
         client = self.request.connection.stream
 
-        print 'connect...', self.request
-        client.write('HTTP/1.0 407 Proxy Authentication Required\r\n\r\n')
-        return
-
+        if not self.handle_auth():
+            return
 
         def read_from_client(data):
             upstream.write(data)
@@ -118,7 +139,6 @@ class ProxyHandler(tornado.web.RequestHandler):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         upstream = tornado.iostream.IOStream(s)
         upstream.connect((host, int(port)), start_tunnel)
-
 
 def run_proxy(port, start_ioloop=True):
     """
