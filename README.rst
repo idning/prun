@@ -23,6 +23,17 @@ proxy
 =====
 
 a pure python proxy, no auth supported.
+(i forget what do i want to do, maybe auth, maybe I need get a.com/xx proxy)
+
+supported proxy
+===============
+
+
+http://127.0.0.1:8888                       #http  connect porxy
+https://127.0.0.1:8888                      #https connect proxy
+
+http://127.0.0.1:8888/q?q=                  #http  get connect proxy
+https://127.0.0.1:8888/q?q=                 #https get connect proxy
 
 
 more python proxy:
