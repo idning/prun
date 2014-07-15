@@ -11,7 +11,6 @@ import re
 import time
 import ssl
 
-
 import argparse
 import tornado.web
 import tornado.httpserver
@@ -19,64 +18,40 @@ import tornado.httpclient
 
 ARGS = None
 
-PWD = os.path.dirname(os.path.realpath(__file__))
 class HelloHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("Hello, world")
 
-#GET /q?q=a:b
-
-class MyProxyHandler(tornado.web.RequestHandler):
-    @tornado.web.asynchronous
-    def get(self):
-        q = self.request.arguments['q'][0]
-        print 'proxy: ', q
-
-        host, port = q.split(':')
-        #host, port = self.request.uri.split(':')
-        client = self.request.connection.stream
-
-        def read_from_client(data):
-            upstream.write(data)
-
-        def read_from_upstream(data):
-            client.write(data)
-
-        def client_close(data=None):
-            if upstream.closed():
-                return
-            if data:
-                upstream.write(data)
-            upstream.close()
-
-        def upstream_close(data=None):
-            if client.closed():
-                return
-            if data:
-                client.write(data)
-            client.close()
-
-        def start_tunnel():
-            client.read_until_close(client_close, read_from_client)
-            upstream.read_until_close(upstream_close, read_from_upstream)
-            client.write(b'HTTP/1.0 200 Connection established\r\n\r\n')
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-
-        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        client.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-        upstream = tornado.iostream.IOStream(s)
-        upstream.connect((host, int(port)), start_tunnel)
-
-class MyTunnelHandler(tornado.web.RequestHandler):
+class TunnelHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ['GET', 'POST', 'CONNECT']
 
     @tornado.web.asynchronous
-    def connect(self):
-        host, port = self.request.uri.split(':')
+    def get(self):
+        print self.request
+        body = 'GET %s HTTP/1.0\r\n' % self.request.uri
+        for k , v in self.request.headers.items():
+            body += '%s: %s\r\n' % (k, v)
+        body += '\r\n'
+        body += self.request.body
+        return self.connect(body)
+
+    @tornado.web.asynchronous
+    def post(self):
+        return self.get()
+
+    @tornado.web.asynchronous
+    def connect(self, firstline=None):
+        if self.request.method == 'CONNECT':
+            host, port = self.request.uri.split(':')
+        else:
+            host = self.request.host
+            if self.request.protocol == 'http':
+                port = 80
+            else:
+                port = 443
+
         client = self.request.connection.stream
-        print 'CONNECT %s:%s' % (host, port)
+
 
         def read_from_client(data):
             upstream.write(data)
@@ -98,101 +73,44 @@ class MyTunnelHandler(tornado.web.RequestHandler):
                 client.write(data)
             client.close()
 
-        def ddd(data=None):
+        def on_connect(data=None):
+            # data is 'HTTP/1.0 200 Connection established\r\n\r\n'
+
+            if firstline:
+                print firstline
+                upstream.write_to_fd(firstline)
+            else:
+                client.write(data)
+
             client.read_until_close(client_close, read_from_client)
             upstream.read_until_close(upstream_close, read_from_upstream)
-            client.write(b'HTTP/1.0 200 Connection established\r\n\r\n')
 
         def start_tunnel():
-            method = 'CONNECT '
-            conn_str = "%s%s:%s HTTP/1.0\r\n\r\n" % (method, host, port);
-            print 'write', conn_str
-            print 'write', upstream.write_to_fd(conn_str)
+            body = "%s %s:%s HTTP/1.0\r\n\r\n" % (connect_method, host, port);
+            print 'bodyx', body
+            upstream.write_to_fd(body)
+            upstream.read_until('\r\n\r\n', on_connect)
 
-            # while True:
-                # print 'read', upstream.read_from_fd()
-
-            print upstream.read_until('\r\n\r\n', ddd)
-
-
-        #https://127.0.0.1:8888/q?q=
-        m = re.match('(.*?)://(.*?):(.*?)/(.*?)', ARGS.upstream)
-        upstream_protocl, upstream_host, upstream_port, connect_str = m.groups()
+        #https://127.0.0.1:8888/CONNECTX
+        m = re.match('(.*?)://(.*?):(.*?)/(.*)', ARGS.upstream)
+        upstream_protocl, upstream_host, upstream_port, connect_method = m.groups()
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         print 'setup tunnel to %s' % ARGS.upstream
+        print connect_method
 
         if upstream_protocl == 'https':
-            upstream = tornado.iostream.SSLIOStream(s,
-                ssl_options= dict(
-                    # ca_certs="/home/ning/idning-github/prun/conf/www.ning.com.cert",
-                    ca_certs=None,
-                    cert_reqs=ssl.CERT_NONE))
+            upstream = tornado.iostream.SSLIOStream(s, ssl_options= dict( ca_certs=None, cert_reqs=ssl.CERT_NONE))
         else:
             upstream = tornado.iostream.IOStream(s)
 
         upstream.connect((upstream_host, int(upstream_port)), start_tunnel)
 
-    @tornado.web.asynchronous
-    def _get(self):
-        q = self.request.arguments['q'][0]
-        print 'proxy: ', q
-
-        host, port = q.split(':')
-        #host, port = self.request.uri.split(':')
-        client = self.request.connection.stream
-
-        def read_from_client(data):
-            upstream.write(data)
-
-        def read_from_upstream(data):
-            client.write(data)
-
-        def client_close(data=None):
-            if upstream.closed():
-                return
-            if data:
-                upstream.write(data)
-            upstream.close()
-
-        def upstream_close(data=None):
-            if client.closed():
-                return
-            if data:
-                client.write(data)
-            client.close()
-
-        def start_tunnel():
-            method = 'CONNECT'
-            conn_str = "%s%s:%s HTTP/1.0\r\n\r\n" % (s, host, port);
-            upstream.write(conn_str)
-
-            client.read_until_close(client_close, read_from_client)
-            upstream.read_until_close(upstream_close, read_from_upstream)
-            client.write(b'HTTP/1.0 200 Connection established\r\n\r\n')
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-
-        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        client.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-        # stream = iostream.IOStream(s)
-        upstream = iostream.SSLIOStream(s,
-            ssl_options= dict(
-                ca_certs="/home/ning/idning-github/prun/conf/www.ning.com.cert",
-                cert_reqs=ssl.CERT_NONE))
-
-        # upstream = tornado.iostream.IOStream(s)
-        upstream.connect((host, int(port)), start_tunnel)
-
 class ProxyHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ['GET', 'POST', 'CONNECT']
+    SUPPORTED_METHODS = ['GETX', 'POSTX', 'CONNECTX']
 
     @tornado.web.asynchronous
-    def get(self):
-        if not self.handle_auth():
-            return
-
+    def getx(self):
         print 'get %s' % self.request.uri
         def handle_response(response):
             if response.error and not isinstance(response.error,
@@ -214,6 +132,7 @@ class ProxyHandler(tornado.web.RequestHandler):
             method=self.request.method, body=self.request.body,
             headers=self.request.headers, follow_redirects=False,
             allow_nonstandard_methods=True)
+        print req
 
         client = tornado.httpclient.AsyncHTTPClient()
         try:
@@ -227,41 +146,14 @@ class ProxyHandler(tornado.web.RequestHandler):
                 self.finish()
 
     @tornado.web.asynchronous
-    def post(self):
+    def postx(self):
         return self.get()
 
-    def handle_auth(self):
-        return True
-
-        host, port = self.request.uri.split(':')
-        client = self.request.connection.stream
-
-        print self.request
-
-        if 'Proxy-Authorization' in self.request.headers:
-            auth = self.request.headers['Proxy-Authorization']
-            import base64
-            user_passwd = base64.b64decode(auth.split()[1])
-            print auth, user_passwd
-            user, passwd = user_passwd.split(':', 1)
-
-            if user == 'ning' and passwd == 'passwd':
-                return True
-
-        client.write('HTTP/1.0 407 Proxy Authentication Required\r\n')
-        client.write('proxy-Authenticate: Basic\r\n')
-        client.write('\r\n')
-
-        return False
-
     @tornado.web.asynchronous
-    def connect(self):
+    def connectx(self):
         host, port = self.request.uri.split(':')
         client = self.request.connection.stream
         print 'connect %s:%s' % (host, port)
-
-        if not self.handle_auth():
-            return
 
         def read_from_client(data):
             upstream.write(data)
@@ -297,39 +189,31 @@ def main():
 
     parser = argparse.ArgumentParser(prog='PROG')
     parser.add_argument('-p', '--port', type=int, default='8888')
-    parser.add_argument('--https', default=None, help="htttps hostname, used tofind certs")
+    parser.add_argument('--https', action='store_true', help="enable https?")
     parser.add_argument('--upstream',  default='', help='upstream of tunnel, http://x.com:8888 | https://x.com:8888')
 
     ARGS = parser.parse_args()
 
     if ARGS.upstream:   #as a tunnel server
         application = tornado.web.Application([
-            (r"/hello", HelloHandler),
-            (r".*", MyTunnelHandler),
+            (r"/", HelloHandler),
+            (r".*", TunnelHandler),
         ])
     else:               # as a proxy server
         application = tornado.web.Application([
-            (r"/hello", HelloHandler),
-            (r"/q", MyProxyHandler),
+            (r"/", HelloHandler),
             (r".*", ProxyHandler),
         ])
 
     #enable https.
-    http_server = tornado.httpserver.HTTPServer(application)
     if ARGS.https:
         ssl_options = {
-            "certfile": "conf/%s.cert" % ARGS.https,
-            "keyfile": "conf/%s.key" % ARGS.https,
+            "certfile": "conf/www.ning.com.cert",
+            "keyfile": "conf/www.ning.com.key",
         }
-
-        if not os.path.exists(ssl_options['certfile']):
-            print 'cert %s not exist!' % ssl_options['certfile']
-            exit(1)
-        if not os.path.exists(ssl_options['keyfile']):
-            print 'keyfile %s not exist!' % ssl_options['keyfile']
-            exit(1)
-
         http_server = tornado.httpserver.HTTPServer(application, ssl_options=ssl_options)
+    else:
+        http_server = tornado.httpserver.HTTPServer(application)
 
     http_server.listen(ARGS.port)
     tornado.ioloop.IOLoop.instance().start()
