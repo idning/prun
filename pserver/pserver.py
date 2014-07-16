@@ -28,7 +28,6 @@ class TunnelHandler(tornado.web.RequestHandler):
 
     @tornado.web.asynchronous
     def get(self):
-        print self.request
         x = self.request.uri.split('//', 1)[1]
         path = '/'+x.split('/', 1)[1]
         body = '%s %s HTTP/1.0\r\n' % (self.request.method, path)
@@ -51,7 +50,6 @@ class TunnelHandler(tornado.web.RequestHandler):
         else:
             host = self.request.host
             if host.find(':') != -1:
-                print 'xxxxxxxxx', host
                 host, port = self.request.host.split(':')
 
             else:
@@ -59,7 +57,6 @@ class TunnelHandler(tornado.web.RequestHandler):
                     port = 443
                 else:
                     port = 80
-            print 'HOST:::::', self.request.host
 
         client = self.request.connection.stream
 
