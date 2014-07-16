@@ -10,6 +10,7 @@ import socket
 import re
 import time
 import ssl
+from urlparse import urlparse
 
 import argparse
 import tornado.web
@@ -28,11 +29,15 @@ class TunnelHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def get(self):
         print self.request
-        body = 'GET %s HTTP/1.0\r\n' % self.request.uri
+        x = self.request.uri.split('//', 1)[1]
+        path = '/'+x.split('/', 1)[1]
+        body = '%s %s HTTP/1.0\r\n' % (self.request.method, path)
         for k , v in self.request.headers.items():
             body += '%s: %s\r\n' % (k, v)
         body += '\r\n'
-        body += self.request.body
+        if self.request.body:
+            body += self.request.body
+            body += '\r\n'
         return self.connect(body)
 
     @tornado.web.asynchronous
@@ -45,18 +50,24 @@ class TunnelHandler(tornado.web.RequestHandler):
             host, port = self.request.uri.split(':')
         else:
             host = self.request.host
-            if self.request.protocol == 'http':
-                port = 80
+            if host.find(':') != -1:
+                print 'xxxxxxxxx', host
+                host, port = self.request.host.split(':')
+
             else:
-                port = 443
+                if self.request.protocol == 'https':
+                    port = 443
+                else:
+                    port = 80
+            print 'HOST:::::', self.request.host
 
         client = self.request.connection.stream
-
 
         def read_from_client(data):
             upstream.write(data)
 
         def read_from_upstream(data):
+            # print '===<<<', data
             client.write(data)
 
         def client_close(data=None):
@@ -74,10 +85,10 @@ class TunnelHandler(tornado.web.RequestHandler):
             client.close()
 
         def on_connect(data=None):
+            print '===<<<', data
             # data is 'HTTP/1.0 200 Connection established\r\n\r\n'
-
             if firstline:
-                print firstline
+                print '===>>>', firstline
                 upstream.write_to_fd(firstline)
             else:
                 client.write(data)
@@ -86,8 +97,8 @@ class TunnelHandler(tornado.web.RequestHandler):
             upstream.read_until_close(upstream_close, read_from_upstream)
 
         def start_tunnel():
-            body = "%s %s:%s HTTP/1.0\r\n\r\n" % (connect_method, host, port);
-            print 'bodyx', body
+            body = "%s %s:%s HTTP/1.1\r\n\r\n" % (connect_method, host, port);
+            print '===>>>', body
             upstream.write_to_fd(body)
             upstream.read_until('\r\n\r\n', on_connect)
 
@@ -97,7 +108,6 @@ class TunnelHandler(tornado.web.RequestHandler):
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         print 'setup tunnel to %s' % ARGS.upstream
-        print connect_method
 
         if upstream_protocl == 'https':
             upstream = tornado.iostream.SSLIOStream(s, ssl_options= dict( ca_certs=None, cert_reqs=ssl.CERT_NONE))
@@ -106,11 +116,13 @@ class TunnelHandler(tornado.web.RequestHandler):
 
         upstream.connect((upstream_host, int(upstream_port)), start_tunnel)
 
+#a normal http/https proxy, only CONNECTX allowed
 class ProxyHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ['GETX', 'POSTX', 'CONNECTX']
+    # SUPPORTED_METHODS = ['GET', 'POST', 'CONNECTX']
+    SUPPORTED_METHODS = ['CONNECTX']
 
     @tornado.web.asynchronous
-    def getx(self):
+    def get(self):
         print 'get %s' % self.request.uri
         def handle_response(response):
             if response.error and not isinstance(response.error,
@@ -146,7 +158,7 @@ class ProxyHandler(tornado.web.RequestHandler):
                 self.finish()
 
     @tornado.web.asynchronous
-    def postx(self):
+    def post(self):
         return self.get()
 
     @tornado.web.asynchronous
