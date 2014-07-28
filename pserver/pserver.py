@@ -12,6 +12,8 @@ import time
 import ssl
 from urlparse import urlparse
 
+socket.setdefaulttimeout(60)
+
 import argparse
 import tornado.web
 import tornado.httpserver

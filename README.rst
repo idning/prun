@@ -71,4 +71,14 @@ more python proxy:
 
 http://proxies.xhaus.com/python/
 
+tunning
+-------
+
+if your networking is not so stable, the connection will close frequently.
+
+
+try this::
+
+    $ echo 15 > /proc/sys/net/ipv4/tcp_retries2
+
 
