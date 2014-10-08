@@ -2,17 +2,6 @@ this is a private proxy
 
 we use a modified http CONNECT proxy. change it to a CONNECTX method.
 
-client(prun)
-============
-
-we use
-
-    os.putenv('LD_PRELOAD', so)
-
-to inject a so, hook the connect method of client application, so we can use:
-
-    ./prun.py curl 'www.sina.com'
-
 pserver
 =======
 
@@ -55,15 +44,24 @@ use http between ``Tunnel proxy`` and ``CONNECTX proxy`` for debug::
 most firewall can filter stream over http tunnel, so do not use this on production.
 
 
+prun a client tool like proxychanins to make use of http/socks proxy
+====================================================================
+
+we use
+
+    os.putenv('LD_PRELOAD', so)
+
+to inject a so, hook the connect method of client application, so we can use:
+
+    ./prun.py curl 'www.sina.com'
 
 other
 =====
 
-
 proxy
 -----
 
-a pure python proxy, no auth supported.
+a pure python proxy server, no auth supported.
 (i forget what do i want to do, maybe auth, maybe I need get a.com/xx proxy)
 
 more python proxy:
