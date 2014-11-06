@@ -1,6 +1,5 @@
 all:
-	scons
-
+	cc -c -fPIC src/libprun.c -o libprun.so
 
 clean:
 	rm -f bin/*

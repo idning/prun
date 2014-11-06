@@ -29,7 +29,7 @@ def main():
 this is for a private proxy
 '''
 def main():
-    os.putenv('PRUN_PROXY', '127.0.0.1:8888')
+    os.putenv('PRUN_PROXY', '127.0.0.1:9527')
     os.putenv('PRUN_PROXY_PREFIX', 'CONNECTX ')
     os.putenv('LD_PRELOAD', so)
     os.execvp(sys.argv[1], sys.argv[1:])
